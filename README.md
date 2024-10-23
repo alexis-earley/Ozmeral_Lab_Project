@@ -6,7 +6,7 @@ Overview:
 
 Right now, I am analyzing EEG data to compare how older normal hearing and hearing-impaired individuals react to changes in sound location. I am particularly interested in the brain response differences between those wearing omnidirectional hearing aids, which amplify sounds in all directions, and directional hearing aids, which amplify sounds only in front of the listener. I am also investigating concepts such as sound arrival at specific locations relative to the listener, presentation on the left or right, the total change in angle of the sound, and the difference between active and passive listening. To complete these steps, I am using MATLAB programming and an application called Brainstorm. 
 
-Please note that no subject data has been uploaded for privacy reasons
+Please note that no subject data has been uploaded for privacy reasons.
 
 Program specifics:
 
