@@ -11,9 +11,9 @@ This code is currently being used to analyze subject data with the intention of 
 Program specifics:
 
 My investigation is made up of a number of steps. Here are the overall themes, all of which I have learned to program in MATLAB:
-- Frequency filtering: removing frequencies that are above 100 Hz or below 0.1 Hz, as these are not relevant to the study
-- Artifact detection: most notably, blinking majorly contaminates the data, and these artifacts must be removed
-- Epoching: the data must be divided into smaller segments and sorted based on various conditions
-- Averaging: relevant epochs must be averaged to see the larger picture
+- Frequency filtering: Frequencies that are above 100 Hz or below 0.1 Hz should be disregarded, as these are not relevant to the study.
+- Artifact detection: most notably, blinking majorly contaminates the data, and these artifacts must be removed.
+- Epoching: the data must be divided into smaller segments and sorted based on various conditions.
+- Averaging: relevant epochs must be averaged to see the larger picture.
 
 Besides learning those specifics, this project has furthered my general problem-solving abilities within a programming context. For example, our experiment consisted of four different conditions. Each subject did these different orders, and they were grouped into various blocks of time depending on the subject. I had to figure out a way to use information from a table to divide the data and label them with the various conditions and blocks.
