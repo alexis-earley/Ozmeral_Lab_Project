@@ -53,7 +53,7 @@ function sFiles = Step5(sFiles, SubjectNums)
         SubjectNames = [SubjectNames, WholeName];
     end
     
-    for i = 1:length(SubjectNames)
+    for i = 1:length(SubjectNames) % Iterate through subjects
     
         SubjectName = SubjectNames{i};
 
@@ -63,10 +63,11 @@ function sFiles = Step5(sFiles, SubjectNums)
             'search', 1, ...  % Search the file paths
             'select', 1);  % Select only the files with the tag
     
-        for j = 1:length(Conditions)
+        for j = 1:length(Conditions) % Iterate through all 4 conditions
     
             Condition = Conditions{j};
-    
+
+            % Select all relevant tags, based on the condition
             if (Condition == "Quiet_Passive") || (Condition == "NoisePassive")
                 Active = false;
                 Tags = PassiveTags;
@@ -84,16 +85,16 @@ function sFiles = Step5(sFiles, SubjectNums)
                 'search', 1, ...  % Search the file paths
                 'select', 1);  % Select only the files with the tag
     
-            for k = 1:length(Tags)
+            for k = 1:length(Tags) % Iterate through all selected tags
     
-                TagGroup = Tags{k};
-                TagName = TagNames{k};
+                TagGroup = Tags{k}; % Select group of tags, which all correspond to the same final sound location
+                TagName = TagNames{k}; % Get corresponding name
 
                 sFileTemp = [];
 
                 for l = 1:length(TagGroup)
 
-                    Tag = TagGroup{l};
+                    Tag = TagGroup{l}; % Find individual tag within the group
 
                    % Process: Select file names with tag, ex. 2_Y
                    sFileTag = bst_process('CallProcess', 'process_select_tag', sFileCondition, [], ...
@@ -106,27 +107,9 @@ function sFiles = Step5(sFiles, SubjectNums)
                 end
 
                 sFile = sFileTemp;
-
-                %{
-
-                if Active && (~isnan(str2double(Tag)))
-    
-                    % Process: Ignore file names with tag: _Y
-                    sFile = bst_process('CallProcess', 'process_select_tag', sFile, [], ...
-                        'tag',    '_Y', ...
-                        'search', 2, ...  % Search the file names
-                        'select', 2);  % Ignore the files with the tag
-    
-                    % Process: Ignore file names with tag: _N
-                    sFile = bst_process('CallProcess', 'process_select_tag', sFile, [], ...
-                        'tag',    '_N', ...
-                        'search', 2, ...  % Search the file names
-                        'select', 2);  % Ignore the files with the tag
-                end
-
-                %}
-                
                 NumFiles = length(sFile);
+
+                % Create new name for file
                 NewName = [char(SubjectName), '_', char(Condition), '_', char(TagName), '_Average_', num2str(NumFiles), '_files'];
 
                 % Process: Average: Everything
@@ -146,7 +129,7 @@ function sFiles = Step5(sFiles, SubjectNums)
                     'subjectname', SubjectName, ...
                     'folder',      'Averages');
 
-                AddedFiles = [AddedFiles, sFile];
+                AddedFiles = [AddedFiles, sFile]; % List of files to add to sFiles at end of code
                 
             end
         end
