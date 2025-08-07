@@ -1,5 +1,7 @@
 function sFilesNew = SelectFiles()
 
+% Selects all sFiles within the currently loaded protocol 
+
 % Get all protocol studies
 sAllStudies = bst_get('ProtocolStudies');
 
