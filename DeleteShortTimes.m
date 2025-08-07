@@ -1,5 +1,9 @@
 function sFiles = DeleteShortTimes(sFiles, protocolPath, minTime) 
 
+% Deletes files in brainstorm (sFiles) shorter than minTime.
+% Ensure that protocolPath reflects where the protocol where the sFiles
+% are located.
+
     sFilesNew = [];
 
     for i = 1:length(sFiles)
