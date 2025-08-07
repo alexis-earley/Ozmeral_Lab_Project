@@ -8,13 +8,20 @@ SubjectNames = {};
         RawFiles = {};
         sFileIndiv = [];
         CurrSubject = SubjectNums{i};
+
         SubjectName = strcat('Subject_',CurrSubject);
         SubjectNames = [SubjectNames, SubjectName];
-        FileName = strcat (CurrSubject, '/EOR21_Aim1_', CurrSubject, '*.cnt');
+
+        while CurrSubject(1) == '0'
+            CurrSubject = CurrSubject(2:end);
+        end
+
+        %FileName = strcat (CurrSubject, '/EOR21_Aim1_', CurrSubject, '*.cnt');
+        FileName = strcat ('*',CurrSubject, '/EOR21_Aim1*', CurrSubject, '*.cnt');
         FileList= dir(FileName);
         RawFiles = [RawFiles, strcat({FileList.folder}', '/', {FileList.name}')];
 
-        ChannelFile = strcat (CurrSubject, '/Subject_', CurrSubject, '*.pos');
+        ChannelFile = strcat ('*', CurrSubject, '/Subject_', CurrSubject, '*.pos');
         ChannelFileList = dir(ChannelFile);
         ChannelFiles = strcat({ChannelFileList.folder}', '/', {ChannelFileList.name}');
     
@@ -32,14 +39,16 @@ SubjectNames = {};
                 'evtmode',        'value');
     
             RawNums = regexp(CurrRawFile,'[0-9]','match');
-            RawNums = [RawNums(1:4), RawNums(8:19)];
-    
+            %RawNums = [RawNums(1:4), RawNums(8:19)];
+            %RawNums = [RawNums(2:5), RawNums(9:20)];
+            RawNums = [RawNums(12:19)];
+
             foundChannel = 0;
     
             for k = 1:length(ChannelFiles)
                 CurrChannelFile = ChannelFiles{k};
                 ChannelNums = regexp(CurrChannelFile,'[0-9]','match');
-                ChannelNums = ChannelNums(1:16);
+                ChannelNums = ChannelNums(9:16);
                 
                 if isequal(RawNums,ChannelNums)
     
@@ -56,7 +65,7 @@ SubjectNames = {};
             end
             
             if foundChannel == 0
-                disp('Error: No channel file found');
+                disp(strcat('Error: No channel file found for Subject_', char(CurrSubject)));
             end
 
             sFiles = [sFiles, sFileIndiv];
@@ -65,11 +74,8 @@ SubjectNames = {};
     end
 
     
-
     sFiles = bst_process('CallProcess', 'process_channel_setbad', sFiles, [], ...
-    'sensortypes', ['EOG, BIP1, BIP2, BIP3, BIP4, BIP5, BIP6, BIP7, BIP8, BIP9, ...' ...
-    'BIP10, BIP11, BIP12, BIP13, BIP14, BIP15, BIP16, BIP17, BIP18, BIP19, ...' ...
-    'BIP20, BIP21, BIP22, BIP23, BIP24, GRS1, RESP1, TEMP1, ACC1']);
+    'sensortypes', ['EOG, BIP1, BIP2, BIP3, BIP4, BIP5, BIP6, BIP7, BIP8, BIP9, BIP10, BIP11, BIP12, BIP13, BIP14, BIP15, BIP16, BIP17, BIP18, BIP19, BIP20, BIP21, BIP22, BIP23, BIP24, GRS1, RESP1, TEMP1, ACC1']);
 
 end
 

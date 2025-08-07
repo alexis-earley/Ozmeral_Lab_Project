@@ -1,0 +1,68 @@
+function [sFiles,Orders] = FileType(sFiles, ProtocolPath) 
+
+    Orders = [""];
+
+    for i = 1:length(sFiles)
+
+        CurrFile = sFiles([i]);
+
+        %{
+        FileName = CurrFile.FileName;
+        RawNums = regexp(FileName,'[0-9]','match');
+        NewRaw = RawNums(1:end-1);
+
+        if NewRaw ~= OldRaw
+
+        end
+
+        if lengthOrder == 0
+            OldRaw = NewRaw;
+        elseif lengthOrder < 5
+            Order(end + 1) = 
+        else
+        end
+
+
+        if OldRaw == NewRaw
+
+            if length(Order)
+
+
+        end
+
+        %}
+
+        z = load((fullfile(ProtocolPath,CurrFile.FileName)),'F');
+        %FileEvents = z.F.events([28]).times;
+        FileEvents = z.F.events;
+        Index = 1;
+        for Index = 1:length(FileEvents)
+            FileLabel = FileEvents(Index).label;
+            if FileLabel == '60'
+                break;
+            end
+        end
+        FileTimes = z.F.events(Index).times;
+        Passive = isempty(FileTimes);
+        
+        Value = ceil(i / 4);
+        Rem = mod(i, 4);
+        if Rem == 0
+            Rem = 4;
+        end
+
+        Value
+        Rem
+
+        if Passive
+            Orders(Value,Rem) = "Passive";
+            disp('Passive');
+        else
+            Orders(Value,Rem) = "Active";
+            disp('Active');
+        end
+    end 
+
+    Orders = Orders(2:end);
+   
+end
