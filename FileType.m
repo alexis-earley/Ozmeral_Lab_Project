@@ -1,5 +1,9 @@
 function [sFiles,Orders] = FileType(sFiles, ProtocolPath) 
 
+% Classifies each file in sFiles as either "Passive" or "Active"
+% Presence of ‘60’ trigger -> active
+% Otherwise -> passive
+
     Orders = [""];
 
     for i = 1:length(sFiles)
