@@ -1,5 +1,7 @@
 function sFiles = SelectUsingTag(sFiles, tag)
 
+% Select all sFiles with a specific tag
+
 tag = char(tag); 
 
 disp(['Selecting files using tag: ', tag, '.']);
