@@ -1,6 +1,6 @@
 function RenameTriggerFields(inputDir, outputDir)
-% Renames 'epoch_avg_trigger' → 'epoch_avg' and 'num_files_trigger' → 'num_files'
-% in each .mat file inside inputDir, saving results to outputDir
+% Renames 'epoch_avg_trigger' -> 'epoch_avg' and 'num_files_trigger' -> 'num_files'
+% Converting old naming convention to new
 
     % Ensure output directory exists
     if ~exist(outputDir, 'dir')
