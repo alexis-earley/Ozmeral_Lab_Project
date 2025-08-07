@@ -1,83 +1,122 @@
-%% Change variables below
-
-% Set up
-clear;
+clearvars -except sFiles;
 clc;
-sFiles = [];
 
-% State whether this is a new experiment
-NewExperiment = true;
+% Runs the main Brainstorm pipeline (whichever steps user wants)
 
-% If not starting a new experiment, state which file to load variables from
-% Note this can be an output file or just a list of sfiles from Brainstorm
+% ======================== SET GLOBAL VARIABLES ===========================
+% CHANGE AS NEEDED:
 
-LoadFile = '2024_2025_Paper_All_Subjects_Step_0.mat';
-if ~NewExperiment
-    load(LoadFile)
+selectNewFiles = false; % Will disregard if no sFiles exist in Workspace yet
+
+protocolName = 'Paper_Data_OHI_01_27_2025'; % Will desregard if a protocol is already open
+
+subjectNums = {'0941','0982','0994','1024','1057','1109', ...
+    '1136','1172','1233','1257','1372','1168'};
+
+% =============================== SET UP =================================
+% DO NOT CHANGE:
+
+% Open Brainstorm and load current protocol, if not done already
+setUpBrainstorm(protocolName);
+
+if ~exist(sFiles, 'var')
+    selectNewFiles = true;
 end
 
-script_new;
+if selectNewFiles
+    sFiles = SelectFiles();
+end
 
-% State which file to output variables to
-SaveFile = '2024_2025_Paper_All_Subjects_Step_1.mat';
-
-% Insert step to start at here (must be 0 for a new experiment)
-FirstStep = 1;
-% Insert step to end at here (cannot be less than previous step)
-LastStep = 1;
-
-% If running Steps 0 or 5, insert subjects of interest here
-SubjectNums = {'0170', '1009', '1031', '1068', '1071','1081', '1111', ...
-    '1113', '1145', '1153', '1157', '1191', '1223', '1228', '1263', ...
-    '1264', '1273', '1337'};
-
-% If running Step 3, insert path of protocol used
-ProtocolPath = '/Users/alexis/Documents/Brainstorm/brainstorm_db/SAA_Test_All_Subjects/data';
-
-% If running Step 4, insert order file
-FullTable = ('Full_Table_09_17_24.csv');
-
-%%  Do not change from now on
+sFilesNew = {};
+for i = 1:length(subjectNums)
+    subjectNum = subjectNums{i};
+    sFilesNew = [sFilesNew, Select_Using_Tags(sFiles, subjectNum)];
+end
+sFiles = sFilesNew;
 
 % Start a new report
 bst_report('Start', sFiles);
 
-% Run desired functions
+% =============================== STEP 0 =================================
+% DO NOT CHANGE:
 
 % Set up subjects and channel files
-if FirstStep == 0 && LastStep >= 0 
-    sFiles = SetUpSubjects(sFiles,SubjectNums);
-end
+sFiles = SetUpSubjects(sFiles,SubjectNums);
+
+% =============================== STEP 1 =================================
+% DO NOT CHANGE:
 
 % Do filtering
-if FirstStep <= 1 && LastStep >= 1 
-    sFiles = Step1(sFiles);
-end
+sFiles = Step1(sFiles);
+
+% =============================== STEP 2 =================================
+% DO NOT CHANGE:
 
 % Remove artifacts
-if FirstStep <= 2 && LastStep >= 2
-    sFiles = Step2(sFiles);
-end
+sFiles = Step2(sFiles);
+
+% =============================== STEP 3 =================================
+% CHANGE AS NEEDED:
+
+% Insert path of protocol used (should end with data folder)
+ProtocolPath = 'E:\Alexis_Brainstorm\EOR21_Earley_Paper_Final\Brainstorm_db\Paper_Data_OHI_01_27_2025\data';
+
+% Insert minimum number of milliseconds for files (default = 350)
+minTime = 350;
+
+% ------------------------------------------------------------------------
+
+% DO NOT CHANGE:
 
 % Split based on channels
-if FirstStep <= 3 && LastStep >= 3 
-    sFiles = Step3(sFiles);
-    sFiles = DeleteShortTimes(sFiles, ProtocolPath);
-end
+sFiles = Step3_New(sFiles);
+
+sFiles = DeleteShortTimes(sFiles, ProtocolPath, minTime);
+
+% =============================== STEP 4 =================================
+% CHANGE AS NEEDED:
+
+% Insert order file
+fullTable = ('Full_Table_09_17_24.csv');
+
+% ------------------------------------------------------------------------
+
+% DO NOT CHANGE:
 
 % Epoch and sort by condition
 if FirstStep <= 4 && LastStep >= 4 
-    sFiles = Step4(sFiles, FullTable);
+    sFiles = Step4(sFiles, fullTable);
 end
 
- % Average
-if FirstStep <= 5 && LastStep >= 5
-    sFiles = Step5(sFiles, SubjectNums);
+% =============================== STEP 5 =================================
+% CHANGE AS NEEDED:
+protocolPath5 = 'E:\Alexis_Brainstorm\EOR21_Earley_Paper_Final\Data_Structs\All_Subjects\';
+
+% ------------------------------------------------------------------------
+
+% DO NOT CHANGE:
+disp('Starting Step 5:')
+
+gSubjectNames = cellfun(@(x) ['Subject_', x], subjectNums, ...
+    'UniformOutput', false); % Add 'Subject_' in front of each subject number
+
+if selectNewFiles
+    sFiles = Select_Using_Tag(sFiles, 'Epochs');
 end
 
-% Save variables
-save(SaveFile);
+sFilesFinal = {};
+for i = 1:length(gSubjectNames)
+    subject_name = gSubjectNames(i);
+    disp(['Converting ', char(subject_name), ' to struct form.']);
+    sFiles_5_subj = Select_Using_Tag(sFiles_5, subject_name);
+    Step5_New(sFiles_5_subj, protocolPath5);
+    sFilesFinal{end + 1} = sFiles_5_subj;
+end
+
+% =============================== WRAP UP =================================
+% DO NOT CHANGE:
 
 % Save and display report
-ReportFile = bst_report('Save', sFiles);
+ReportFile = bst_report('Save', sFilesFinal);
 bst_report('Open', ReportFile);
+
