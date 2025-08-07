@@ -6,32 +6,6 @@ function [sFiles,Orders] = FileType(sFiles, ProtocolPath)
 
         CurrFile = sFiles([i]);
 
-        %{
-        FileName = CurrFile.FileName;
-        RawNums = regexp(FileName,'[0-9]','match');
-        NewRaw = RawNums(1:end-1);
-
-        if NewRaw ~= OldRaw
-
-        end
-
-        if lengthOrder == 0
-            OldRaw = NewRaw;
-        elseif lengthOrder < 5
-            Order(end + 1) = 
-        else
-        end
-
-
-        if OldRaw == NewRaw
-
-            if length(Order)
-
-
-        end
-
-        %}
-
         z = load((fullfile(ProtocolPath,CurrFile.FileName)),'F');
         %FileEvents = z.F.events([28]).times;
         FileEvents = z.F.events;
