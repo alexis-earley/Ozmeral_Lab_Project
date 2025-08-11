@@ -1,31 +1,30 @@
-function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
-    if nargin < 4
+function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
+
+%function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
+    if nargin < 5
         error('Source and destination folders (and graphing instruction) must be specified.')
     end
-    if nargin < 5
+    if nargin < 6
         upperThreshold = 100E-6;
     end
-    if nargin < 6
+    if nargin < 7
         zScoreLimit = 6.5;
     end
-    if nargin < 7
+    if nargin < 8
         flatStdThresh = 5e-8;
     end
 
     files = dir(fullfile(sourceFolder, '*.mat'));
 
-    destFolderA = fullfile(destFolder, 'Step6A_Output', destSubFolder);
-    if ~exist(destFolderA, 'dir'), mkdir(destFolderA); end
-    destFolderB = fullfile(destFolder, 'Step6B_Output', destSubFolder);
-    if ~exist(destFolderB, 'dir'), mkdir(destFolderB); end
-    destFolderC = fullfile(destFolder, 'Step6C_Output', destSubFolder);
-    if ~exist(destFolderC, 'dir'), mkdir(destFolderC); end
+    destFolderA = mainDestFolders{1}; if ~exist(destFolderA, 'dir'), mkdir(destFolderA); end
+    destFolderB = mainDestFolders{2}; if ~exist(destFolderB, 'dir'), mkdir(destFolderB); end
+    destFolderC = mainDestFolders{3}; if ~exist(destFolderC, 'dir'), mkdir(destFolderC); end
 
     subjChannTypes = {'Total Good', 'Failed peak-to-peak', 'Failed standard deviation', 'Failed active', ...
     'Failed peak-to-peak and standard deviation', 'Failed peak-to-peak and active', ...
     'Failed active and standard deviation', 'Failed all', 'Total Bad'};
     
-    outputCSVChann = fullfile(destFolder, 'Output_Files', destSubFolder, 'channel_failure_summary.csv');
+    outputCSVChann = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'channel_failure_summary.csv');
 
     %{
     % Create blank CSV file (and its folders if needed)
@@ -252,7 +251,7 @@ function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThr
                         newStructDataB.(condition).(trigger).(block).num_files = epTotChannels;
 
                         if plotBool
-                            dirFolderGr = fullfile(destFolder, 'Step7_IndivGraphs_Output', destSubFolder, nameOnly, condition);
+                            dirFolderGr = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output', destSubFolder, nameOnly, condition);
                             if ~exist(dirFolderGr, 'dir')
                                 mkdir(dirFolderGr);
                             end
@@ -342,7 +341,7 @@ function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThr
 
     % Save subject_response_stats.csv
     responseKeys = subjRespStats.keys;
-    outputCSV1 = fullfile(destFolder, 'Output_Files', destSubFolder, 'subject_response_stats.csv');
+    outputCSV1 = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'subject_response_stats.csv');
     csvfile1 = fopen(outputCSV1, 'w');
     fprintf(csvfile1, 'Subject, Correct Responses, Incorrect Responses, Percent Correct\n');
     for i = 1:length(responseKeys)
@@ -355,7 +354,7 @@ function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThr
 
     % Save subject_channel_stats.csv
     channelKeys = subjChanStats.keys;
-    outputCSV2 = fullfile(destFolder, 'Output_Files', destSubFolder, 'subject_channel_stats.csv');
+    outputCSV2 = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'subject_channel_stats.csv');
     csvfile2 = fopen(outputCSV2, 'w');
     fprintf(csvfile2, 'Subject, Good Channels, Bad Channels, Percent Correct\n');
     for i = 1:length(channelKeys)
@@ -367,7 +366,7 @@ function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThr
     disp(['Saved summary stats to CSV: ', outputCSV2]);   
 
     % Save limit_stats.csv
-    outputTXT = fullfile(destFolder, 'Output_Files', destSubFolder, 'limit_stats.txt');
+    outputTXT = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'limit_stats.txt');
     txtfile = fopen(outputTXT, 'w');
     fprintf(txtfile, ['Peak to peak upper limit: ', num2str(upperThreshold * 1E6), 'µV.\n']);
     fprintf(txtfile, ['Standard deviation lower limit : ', num2str(flatStdThresh * 1E6), 'µV.\n']);
