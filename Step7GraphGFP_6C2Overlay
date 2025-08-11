@@ -1,0 +1,170 @@
+function Step7GraphGFP_6C2Overlay(inputDir, outputDir, maxTime)
+% Plots GFP traces from all Block*_*(condition) entries (from 6C2) as subplots.
+% Saves ONE figure per SUBJECT with one SUBPLOT per CONDITION.
+%
+% Input:
+%   inputDir  - folder with *_6C2.mat files (output of Step6Bto6C2CombinedBlocks or Step6CNew2CombinedBlocks)
+%   outputDir - folder to save figures
+%   maxTime   - max time in seconds for the x-axis (Ex. 0.8 for 800 ms); use [] to keep full length
+%
+% Notes:
+% - Computes GFP = std(epoch_avg, 0, 1) across channels, in microvolts.
+% - Groups fields by condition via name pattern:  Block(\d+)_(\d+)_(<condition>)
+% - Each SUBJECT gets ONE figure; each CONDITION is a subplot with all of its blocks overlaid + legend.
+% - Saves as: <subjectID>_AllConditions_GFPBlocks.png in outputDir.
+
+    if nargin < 3 || isempty(maxTime)
+        maxTime = []; % keep full length if not provided
+    end
+
+    doFilter = 1;
+    cutoff = 30;
+
+    if ~exist(outputDir, 'dir')
+        mkdir(outputDir);
+    end
+
+    files = dir(fullfile(inputDir, '*.mat'));
+    if isempty(files)
+        error(['No .mat files found in ', inputDir]);
+    end
+
+    fs = 500;        % sampling rate used in your pipeline
+    tMin = -0.1;     % start at -100 ms (matches 1051 samples for ~2.1s at 500 Hz)
+
+    % Pre-build LPF if needed
+    if doFilter
+        [b, a] = butter(4, cutoff / (fs / 2), 'low');
+    end
+
+    for f = 1:length(files)
+        inPath = fullfile(inputDir, files(f).name);
+        data = load(inPath);
+        rootNames = fieldnames(data);
+        if isempty(rootNames), warning(['Empty file: ', inPath]); continue; end
+        root = rootNames{1};           % Ex. Subject_XXXX_6C2
+        subjStruct = data.(root);
+
+        % Build list of (blockLabel, condition) and store GFPs per condition
+        allFields = fieldnames(subjStruct);
+        condMap = containers.Map();    % cond -> struct with fields: blocks (cell), gfps (cell)
+        sampleLen = [];                % we'll set from first epoch_avg we see
+
+        for i = 1:length(allFields)
+            field = allFields{i};      % Ex. Block1_2_Attend60R
+            % Parse "BlockX_Y_<condition>"
+            tok = regexp(field, '^(Block\d+_\d+)_(.+)$', 'tokens', 'once');
+            if isempty(tok), continue; end
+            blockLabel = tok{1};       % 'Block1_2'
+            cond = tok{2};             % 'Attend60R' or Passive etc.
+
+            entry = subjStruct.(field);
+            if ~isfield(entry, 'epoch_avg'), continue; end
+            epoch_avg = entry.epoch_avg;   % 63 x N
+
+            if isempty(sampleLen)
+                sampleLen = size(epoch_avg, 2);
+            end
+
+            % Compute GFP (μV)
+            gfp = std(epoch_avg, 0, 1) * 1e6;
+
+            % Filter if requested
+            if doFilter
+                gfp = filtfilt(b, a, gfp);
+            end
+
+            % Store in condMap
+            if ~isKey(condMap, cond)
+                s.blocks = {blockLabel};
+                s.gfps = {gfp};
+                condMap(cond) = s;
+            else
+                s = condMap(cond);
+                s.blocks{end+1} = blockLabel;
+                s.gfps{end+1} = gfp;
+                condMap(cond) = s;
+            end
+        end
+
+        if isempty(sampleLen)
+            warning(['No epoch_avg found in file: ', inPath]);
+            continue;
+        end
+
+        % Build common time vector and trim to maxTime if provided
+        timeVec = linspace(tMin, tMin + (sampleLen - 1) / fs, sampleLen) * 1000; % ms
+        if ~isempty(maxTime)
+            lastIndex = find(timeVec <= maxTime * 1000, 1, 'last');
+            if isempty(lastIndex), lastIndex = length(timeVec); end
+        else
+            lastIndex = length(timeVec);
+        end
+        ts = timeVec(1:lastIndex);
+
+        % Subject label from filename (keep your style)
+        [~, baseName, ~] = fileparts(files(f).name);
+        subjID = erase(baseName, '_6C2'); % Ex. 'Subject_XXXX'
+
+        % One figure per subject; subplots per condition
+        condKeys = condMap.keys;
+        nConds = numel(condKeys);
+        if nConds == 0
+            warning(['No conditions found in file: ', inPath]);
+            continue;
+        end
+
+        % Grid: square-ish layout
+        nCols = ceil(sqrt(nConds));
+        nRows = ceil(nConds / nCols);
+
+        figH = figure('Visible', 'off', 'Position', [100, 100, 1400, 900]);
+        tl = tiledlayout(figH, nRows, nCols, 'TileSpacing', 'compact', 'Padding', 'compact');
+
+        for k = 1:nConds
+            cond = condKeys{k};
+            s = condMap(cond);
+
+            nexttile;
+            hold on;
+
+            % Plot all block GFPs on same axes
+            for bIdx = 1:length(s.gfps)
+                gfp = s.gfps{bIdx}(1:lastIndex);
+                plot(ts, gfp, 'LineWidth', 1); % let MATLAB auto-colors differentiate blocks
+            end
+
+            % Title, labels, legend
+            title(cond, 'Interpreter', 'none', 'FontSize', 10);
+            xlim([ts(1), ts(end)]);
+            if k > (nRows - 1) * nCols % bottom row
+                xlabel('Time (ms)');
+            end
+            if mod(k - 1, nCols) == 0 % first column
+                ylabel('GFP (\muV)');
+            end
+
+            % Legend with block labels; shrink font to avoid overlap
+            try
+                lgd = legend(s.blocks, 'Interpreter', 'none', 'Location', 'best');
+                set(lgd, 'FontSize', 7);
+            catch
+                % If legend fails (too many entries), skip legend quietly
+            end
+        end
+
+        % Global title and save
+        title(tl, [subjID, ' - GFP across Blocks (All Conditions)'], 'Interpreter', 'none', 'FontSize', 12);
+
+        if ~exist(outputDir, 'dir')
+            mkdir(outputDir);
+        end
+        outName = [subjID, '_AllConditions_GFPBlocks.png'];
+        saveas(figH, fullfile(outputDir, outName));
+        close(figH);
+
+        disp(['Saved figure for subject: ', subjID, ' to ', outputDir]);
+    end
+
+    disp('All subject figures saved.');
+end
