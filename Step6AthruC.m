@@ -1,16 +1,16 @@
-function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
+function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolder, plotBool6A, plotBool6B, plotBool6C, upperThreshold, zScoreLimit, flatStdThresh)
 
 %function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
-    if nargin < 5
-        error('Source and destination folders (and graphing instruction) must be specified.')
+    if nargin < 7
+        error('Source/dest folders and plotting flags (6A/6B/6C) must be specified.')
     end
-    if nargin < 6
+    if nargin < 8 || isempty(upperThreshold)
         upperThreshold = 100E-6;
     end
-    if nargin < 7
+    if nargin < 9 || isempty(zScoreLimit)
         zScoreLimit = 6.5;
     end
-    if nargin < 8
+    if nargin < 10 || isempty(flatStdThresh)
         flatStdThresh = 5e-8;
     end
 
@@ -25,13 +25,12 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
     'Failed active and standard deviation', 'Failed all', 'Total Bad'};
     
     outputCSVChann = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'channel_failure_summary.csv');
-
-    %{
+   
     % Create blank CSV file (and its folders if needed)
     if ~exist(fileparts(outputCSVChann), 'dir')
         mkdir(fileparts(outputCSVChann));
     end
-    %}
+    
 
     fChann = fopen(outputCSVChann, 'w');
     % Write header
@@ -100,7 +99,7 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                     epTotData = zeros(63,1051);
                     epTotChannels = zeros(63,1);
                     
-                    if plotBool
+                    if plotBool6A
                         % Subplot
                         numEpochs = length(epochNames);
                         subplotCols = ceil(sqrt(numEpochs));
@@ -186,7 +185,7 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                         subjBadChanns = subjBadChanns + numBad;
                         subjGoodChanns = subjGoodChanns + numGood;
                         
-                        if plotBool
+                        if plotBool6A
 
                             subplot(subplotRows, subplotCols, m);
                             hold on;
@@ -222,7 +221,7 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                                 end
                             end
                             plot(ts, std(dataFiltMicro), 'LineWidth', 2, 'Color', [0, 1, 1]);  % GFP in cyan
-                            title([block ' - ' epoch, ' - ', num2str(passMatrixDiff), ' above'], 'Interpreter', 'none');
+                            title([block ' - ' epoch, ' - ', num2str(63 - sum(passMatrixDiff(:))), ' above'], 'Interpreter', 'none');
                             xlabel('Time (s)');
                             ylabel('µV');
                             xlim([-0.1, 2]);
@@ -250,15 +249,25 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                         newStructDataB.(condition).(trigger).(block).epoch_avg = epAvgData;
                         newStructDataB.(condition).(trigger).(block).num_files = epTotChannels;
 
-                        if plotBool
-                            dirFolderGr = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output', destSubFolder, nameOnly, condition);
-                            if ~exist(dirFolderGr, 'dir')
-                                mkdir(dirFolderGr);
+                        % --- NEW: Step6B graph (per-block average) ---
+                        if plotBool6B
+                            dirFolderGrB = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6B', destSubFolder, nameOnly, condition);
+                            if ~exist(dirFolderGrB, 'dir')
+                                mkdir(dirFolderGrB);
                             end
-                            savePathGr = fullfile(dirFolderGr, [block, '_', trigger, '_Subplots.png']);
-                            exportgraphics(figSub, savePathGr);
-                            close(figSub);
+                            figB = figure('Visible', 'off', 'Position', [100, 100, 1600, 900]);
+                            hold on;
+                            ts = linspace(-0.1, 2.0, size(epAvgData, 2));
+                            dataFiltMicroB = epAvgData * 1E6;
+                            plot(ts, dataFiltMicroB', 'Color', [0 0 0 0.15]); % faint black for channels
+                            plot(ts, std(dataFiltMicroB), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP in cyan
+                            title([block ' - ' trigger ' (Block average)'], 'Interpreter', 'none');
+                            xlabel('Time (s)'); ylabel('µV'); xlim([-0.1, 2]);
+                            savePathGrB = fullfile(dirFolderGrB, [block, '_', trigger, '_BlockAvg.png']);
+                            exportgraphics(figB, savePathGrB);
+                            close(figB);
                         end
+                        % -------------------------------------------
                     end
 
                 end
@@ -270,6 +279,26 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
     
                     newStructDataC.(condition).(trigger).epoch_avg = blockAvgData;
                     newStructDataC.(condition).(trigger).num_files = blockTotChannels;
+
+                    % --- NEW: Step6C graph (per-trigger average across blocks) ---
+                    if plotBool6C
+                        dirFolderGrC = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6C', destSubFolder, nameOnly, condition);
+                        if ~exist(dirFolderGrC, 'dir')
+                            mkdir(dirFolderGrC);
+                        end
+                        figC = figure('Visible', 'off', 'Position', [100, 100, 1600, 900]);
+                        hold on;
+                        ts = linspace(-0.1, 2.0, size(blockAvgData, 2));
+                        dataFiltMicroC = blockAvgData * 1E6;
+                        plot(ts, dataFiltMicroC', 'Color', [0 0 0 0.15]); % faint black for channels
+                        plot(ts, std(dataFiltMicroC), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP in cyan
+                        title([trigger ' (Trigger average across blocks)'], 'Interpreter', 'none');
+                        xlabel('Time (s)'); ylabel('µV'); xlim([-0.1, 2]);
+                        savePathGrC = fullfile(dirFolderGrC, [trigger, '_TriggerAvg.png']);
+                        exportgraphics(figC, savePathGrC);
+                        close(figC);
+                    end
+                    % -------------------------------------------------------------
                 end
             end
         end
@@ -305,7 +334,6 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
         totGoodChanns = totGoodChanns + subjGoodChanns;
         totBadChanns = totBadChanns + subjBadChanns;
        
-        
         % Save updated struct A - cleaned data
         tempStruct.(outputTagA) = newStructDataA;
         save(destinationPathA, '-struct', 'tempStruct', '-v7.3');
