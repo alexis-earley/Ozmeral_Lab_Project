@@ -53,6 +53,7 @@ function Step6F2(inputDir, outputDir)
             totalWeight = combinedStruct.(condition).file_weight;
             expandedWeight = repmat(totalWeight, 1, size(sumData, 2));
             avgData = sumData ./ expandedWeight;
+            avgData(isnan(avgData)) = 0;  % Replace NaNs with zero
 
             if ~all(isfinite(avgData(:)))
                 error('Non-finite values in final average.');

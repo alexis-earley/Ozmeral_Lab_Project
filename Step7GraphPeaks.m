@@ -1,4 +1,4 @@
-function Step7GraphPeaks(inputDir, outputDir, timeRanges)
+function Step7GraphPeaks(inputDir, outputDir, timeRanges, step7GTitle)
     % Graphs boxplots and saves variables
 
     if ~exist(outputDir, 'dir')

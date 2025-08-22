@@ -1,4 +1,4 @@
-function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolder, plotBool6A, plotBool6B, plotBool6C, upperThreshold, zScoreLimit, flatStdThresh)
+function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolder, plotBool6A, plotBool6B, plotBool6C, upperThreshold, zScoreLimit, flatStdThresh, removeDiags, removeNos)
 
 %function Step6AthruC(sourceFolder, destFolder, destSubFolder, plotBool, upperThreshold, zScoreLimit, flatStdThresh)
     if nargin < 7
@@ -20,9 +20,10 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
     destFolderB = mainDestFolders{2}; if ~exist(destFolderB, 'dir'), mkdir(destFolderB); end
     destFolderC = mainDestFolders{3}; if ~exist(destFolderC, 'dir'), mkdir(destFolderC); end
 
-    subjChannTypes = {'Total Good', 'Failed peak-to-peak', 'Failed standard deviation', 'Failed active', ...
-    'Failed peak-to-peak and standard deviation', 'Failed peak-to-peak and active', ...
-    'Failed active and standard deviation', 'Failed all', 'Total Bad'};
+    subjChannTypes = {'Total Good','Failed peak-to-peak','Failed standard deviation','Failed active', ...
+    'Failed peak-to-peak and standard deviation','Failed peak-to-peak and active', ...
+    'Failed active and standard deviation','Failed all','Zeroed (>=50% bad)','Total Bad'}; % NEW
+
     
     outputCSVChann = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'channel_failure_summary.csv');
    
@@ -70,6 +71,12 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
         newStructDataB = struct();
         newStructDataC = struct();
 
+        % holders for new subplot behavior
+        % For 6B: collect per-block epAvgData so we can subplot per trigger later
+        plotStoreB = struct(); % plotStoreB.(condition).(trigger).(block) = epAvgData
+        % For 6C: collect per-trigger blockAvgData so we can subplot per condition later
+        plotStoreC = struct(); % plotStoreC.(condition).(trigger) = blockAvgData
+
         subjGoodChanns = 0;
         subjBadChanns = 0;
         subjChannCounts = zeros(1,length(subjChannTypes));
@@ -86,7 +93,7 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                 trigger = triggerNames{j2};
                 blockNames = fieldnames(structData.(condition).(trigger));
 
-                goodTrig = includeTrigger(condition, trigger);
+                goodTrig = IncludeTrigger(condition, trigger, removeDiags, removeNos);
 
                 blockTotData = zeros(63,1051);
                 blockTotChannels = zeros(63,1);
@@ -107,7 +114,6 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                         figSub = figure('Visible', 'off', 'Position', [100, 100, 2000, 1200]);
                     end
 
-
                     for m = 1:length(epochNames)                      
 
                         epoch = epochNames{m};
@@ -117,11 +123,20 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                             error('Matrix is not numeric or is not a 2D matrix.');
                         end
 
-                        if goodTrig
-                            subjGoodAns = subjGoodAns + 1;
-                        else
-                            subjBadAns = subjBadAns + 1;
+                        % See if this is an active condition
+                        isActiveCond = strncmp(condition, 'Attend', 6);
+
+                        if goodTrig == 1
+                            if isActiveCond
+                                subjGoodAns = subjGoodAns + 1;
+                            end
+                        elseif goodTrig == 0
+                            if isActiveCond
+                                subjBadAns = subjBadAns + 1;
+                            end
                             continue; % VERY IMPORTANT
+                        else % goodTrig == -1
+                            continue;
                         end
 
                         nRows = size(matrix, 1);
@@ -137,14 +152,13 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                             error(['Matrix "', epoch, '" has ', num2str(nRows), ...
                                    ' rows (expected 63, 69, 70, or 88).']);
                         end
-
-                       
-                        % Omit channels if peak-to-peak difference is too large 
+  
+                        % Omit channels if peak-to-peak difference is too large  
                         channelsMax = max((reducedChannels), [], 2);
                         channelsMin = min((reducedChannels), [], 2);
                         channelsDiff = channelsMax - channelsMin;
                         passMatrixDiff = double(channelsDiff <= upperThreshold);
-
+                        
                         % Omit channels if standard deviation is too high
                         channelStd = std(reducedChannels, 0, 2);  % Std deviation across time for each channel
                         meanStd = mean(channelStd, 'omitnan');
@@ -154,39 +168,70 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                         
                         % Omit channels if too flat
                         passMatrixActive = double(channelStd >= flatStdThresh);      
-
-                        passArr = {};
-                        % Count how many channels passed or failed each combination of criteria
-                        allPass = passMatrixDiff & passMatrixStd & passMatrixActive; passArr{end+1} = allPass;
-                        failPeak = ~passMatrixDiff & passMatrixStd & passMatrixActive; passArr{end+1} = failPeak;
-                        failStd = passMatrixDiff & ~passMatrixStd & passMatrixActive; passArr{end+1} = failStd;
-                        failActive = passMatrixDiff & passMatrixStd & ~passMatrixActive; passArr{end+1} = failActive;
-                        failPeakStd = ~passMatrixDiff & ~passMatrixStd & passMatrixActive; passArr{end+1} = failPeakStd;
-                        failPeakActive = ~passMatrixDiff & passMatrixStd & ~passMatrixActive; passArr{end+1} = failPeakActive;
-                        failStdActive = passMatrixDiff & ~passMatrixStd & ~passMatrixActive; passArr{end+1} = failStdActive;
-                        allFail = ~passMatrixDiff & ~passMatrixStd & ~passMatrixActive; passArr{end+1} = allFail;
                         
+                        passArr = {};
+                        % (1) Count how many channels passed all criteria
+                        allPass = passMatrixDiff & passMatrixStd & passMatrixActive; 
+                        passArr{end+1} = allPass;
+                        
+                        % Snapshot PRE-wipe masks (for reason counts)
+                        pre_allPass = allPass;
+                        pre_failPeak = ~passMatrixDiff &  passMatrixStd &  passMatrixActive;
+                        pre_failStd =  passMatrixDiff & ~passMatrixStd &  passMatrixActive;
+                        pre_failActive =  passMatrixDiff &  passMatrixStd & ~passMatrixActive;
+                        pre_failPeakStd = ~passMatrixDiff & ~passMatrixStd &  passMatrixActive;
+                        pre_failPeakActive = ~passMatrixDiff &  passMatrixStd & ~passMatrixActive;
+                        pre_failStdActive =  passMatrixDiff & ~passMatrixStd & ~passMatrixActive;
+                        pre_allFail = ~passMatrixDiff & ~passMatrixStd & ~passMatrixActive;
+                        pre_numGood = sum(pre_allPass);
+                        pre_numBad = 63 - pre_numGood;
+                        
+                        % (2) Majority wipe: if ≥ half fail any check, zero the rest
+                        majorityWipe = sum(~pre_allPass) >= (size(pre_allPass,1) / 2);
+                        if majorityWipe
+                            allPass(:) = 0; % post-wipe: everything is bad in this epoch
+                        end
+                        
+                        % Build fail masks for plotting from PRE-wipe logic
+                        failPeak = pre_failPeak; passArr{end+1} = failPeak;
+                        failStd = pre_failStd; passArr{end+1} = failStd;
+                        failActive = pre_failActive; passArr{end+1} = failActive;
+                        failPeakStd = pre_failPeakStd; passArr{end+1} = failPeakStd;
+                        failPeakActive = pre_failPeakActive; passArr{end+1} = failPeakActive;
+                        failStdActive = pre_failStdActive; passArr{end+1} = failStdActive;
+                        allFail = pre_allFail; passArr{end+1} = allFail;
+                        
+                        % (3) Totals from POST-wipe mask; reasons from PRE-wipe masks
                         tempChannCounts = zeros(1, length(subjChannCounts));
                         numGood = sum(allPass); tempChannCounts(1) = tempChannCounts(1) + numGood;
-                        countFailPeak = sum(failPeak); tempChannCounts(2) = tempChannCounts(2) + countFailPeak;
-                        countFailStd = sum(failStd); tempChannCounts(3) = tempChannCounts(3) + countFailStd;
-                        countFailActive = sum(failActive); tempChannCounts(4) = tempChannCounts(4) + countFailActive;
-                        countFailPeakStd = sum(failPeakStd); tempChannCounts(5) = tempChannCounts(5) + countFailPeakStd;
-                        countFailPeakActive = sum(failPeakActive); tempChannCounts(6) = tempChannCounts(6) + countFailPeakActive;
-                        countFailStdActive = sum(failStdActive); tempChannCounts(7) = tempChannCounts(7) + countFailStdActive;
-                        countAllFail = sum(allFail); tempChannCounts(8) = tempChannCounts(8) + countAllFail;
-                        numBad = 63 - numGood; tempChannCounts(9) = tempChannCounts(9) + numBad;
-
-                        subjChannCounts = subjChannCounts + tempChannCounts; % numBad was already counted
-                        if (sum(tempChannCounts) - numBad) ~= 63
+                        
+                        countFailPeak = sum(pre_failPeak); tempChannCounts(2) = tempChannCounts(2) + countFailPeak;
+                        countFailStd = sum(pre_failStd); tempChannCounts(3) = tempChannCounts(3) + countFailStd;
+                        countFailActive = sum(pre_failActive); tempChannCounts(4) = tempChannCounts(4) + countFailActive;
+                        countFailPeakStd = sum(pre_failPeakStd); tempChannCounts(5) = tempChannCounts(5) + countFailPeakStd;
+                        countFailPeakActive = sum(pre_failPeakActive); tempChannCounts(6) = tempChannCounts(6) + countFailPeakActive;
+                        countFailStdActive = sum(pre_failStdActive); tempChannCounts(7) = tempChannCounts(7) + countFailStdActive;
+                        countAllFail = sum(pre_allFail); tempChannCounts(8) = tempChannCounts(8) + countAllFail;
+                        
+                        numBad = 63 - numGood; tempChannCounts(10) = tempChannCounts(10) + numBad;
+                        
+                        % Bucket 10 = extra zeroed channels caused by the wipe (post - pre)
+                        if majorityWipe
+                            extraZeroed = numBad - pre_numBad; % equals 63 - pre_numBad
+                            tempChannCounts(9) = tempChannCounts(9) + extraZeroed;
+                        end
+                        
+                        % (4) Accumulate + sanity check (reasons + extraZeroed == Total Bad)
+                        subjChannCounts = subjChannCounts + tempChannCounts; % numBad already included
+                        if (sum(tempChannCounts(2:8)) + tempChannCounts(9)) ~= tempChannCounts(10)
                             error('Counting bad channels has not worked.')
                         end
                         
                         subjBadChanns = subjBadChanns + numBad;
                         subjGoodChanns = subjGoodChanns + numGood;
-                        
-                        if plotBool6A
 
+
+                        if plotBool6A
                             subplot(subplotRows, subplotCols, m);
                             hold on;
                             ts = linspace(-0.1, 2.0, size(reducedChannels, 2));
@@ -212,7 +257,7 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                                 lineColor = colorArr{ch};
     
                                 if ch == 1
-                                    lineSize = 0.1;
+                                    lineSize = 0.8;   % slightly thicker so not too faint
                                 else
                                     lineSize = 2;
                                 end
@@ -221,9 +266,15 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
                                 end
                             end
                             plot(ts, std(dataFiltMicro), 'LineWidth', 2, 'Color', [0, 1, 1]);  % GFP in cyan
-                            title([block ' - ' epoch, ' - ', num2str(63 - sum(passMatrixDiff(:))), ' above'], 'Interpreter', 'none');
+
+                            % Descriptive subplot title for 6A 
+                            numPk2PkBad = 63 - sum(passMatrixDiff(:));
+                            subTitle6A = sprintf('%s | %s | %s | %s | %s | Pk2Pk>thresh: %d', ...
+                                nameOnly, condition, trigger, block, epoch, numPk2PkBad);
+                            title(subTitle6A, 'Interpreter', 'none');
+
                             xlabel('Time (s)');
-                            ylabel('µV');
+                            ylabel('\muV');
                             xlim([-0.1, 2]);
                         end
 
@@ -237,68 +288,132 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
 
                         blockTotData = blockTotData + goodData;
                         blockTotChannels = blockTotChannels + allPass;
-                        
-                       
                     end
 
-                    if goodTrig
-
+                    if goodTrig == 1
                         epAvgData = epTotData ./ epTotChannels;
                         epAvgData(epTotChannels == 0, :) = 0;
     
                         newStructDataB.(condition).(trigger).(block).epoch_avg = epAvgData;
                         newStructDataB.(condition).(trigger).(block).num_files = epTotChannels;
 
-                        % --- NEW: Step6B graph (per-block average) ---
+                        % store for 6B plotting by trigger (subplots per block)
                         if plotBool6B
-                            dirFolderGrB = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6B', destSubFolder, nameOnly, condition);
-                            if ~exist(dirFolderGrB, 'dir')
-                                mkdir(dirFolderGrB);
-                            end
-                            figB = figure('Visible', 'off', 'Position', [100, 100, 1600, 900]);
-                            hold on;
-                            ts = linspace(-0.1, 2.0, size(epAvgData, 2));
-                            dataFiltMicroB = epAvgData * 1E6;
-                            plot(ts, dataFiltMicroB', 'Color', [0 0 0 0.15]); % faint black for channels
-                            plot(ts, std(dataFiltMicroB), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP in cyan
-                            title([block ' - ' trigger ' (Block average)'], 'Interpreter', 'none');
-                            xlabel('Time (s)'); ylabel('µV'); xlim([-0.1, 2]);
-                            savePathGrB = fullfile(dirFolderGrB, [block, '_', trigger, '_BlockAvg.png']);
-                            exportgraphics(figB, savePathGrB);
-                            close(figB);
+                            if ~isfield(plotStoreB, condition), plotStoreB.(condition) = struct(); end
+                            if ~isfield(plotStoreB.(condition), trigger), plotStoreB.(condition).(trigger) = struct(); end
+                            plotStoreB.(condition).(trigger).(block) = epAvgData;
                         end
-                        % -------------------------------------------
-                    end
 
+                        % ---- Save 6A per-block/epoch subplots figure with descriptive name ----
+                        if plotBool6A
+                            dirFolderGrA = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6A', destSubFolder, nameOnly, condition, trigger);
+                            if ~exist(dirFolderGrA, 'dir'), mkdir(dirFolderGrA); end
+                            figTitle6A = sprintf('Step6A | %s | %s | %s | %s | epoch subplots', nameOnly, condition, trigger, block);
+                            sgtitle(figSub, figTitle6A, 'Interpreter', 'none');
+                            file6A = sprintf('Step6A__%s__%s__%s__%s__EpochSubplots.png', ...
+                                SafeFile(nameOnly), SafeFile(condition), SafeFile(trigger), SafeFile(block));
+                            savePathGrA = fullfile(dirFolderGrA, file6A);
+                            exportgraphics(figSub, savePathGrA);
+                            close(figSub);
+                        end
+                    end
                 end
 
-                if goodTrig
-                
+                if goodTrig == 1
                     blockAvgData = blockTotData ./ blockTotChannels;
                     blockAvgData(blockTotChannels == 0, :) = 0;
     
                     newStructDataC.(condition).(trigger).epoch_avg = blockAvgData;
                     newStructDataC.(condition).(trigger).num_files = blockTotChannels;
 
-                    % --- NEW: Step6C graph (per-trigger average across blocks) ---
+                    % store for 6C plotting by condition (subplots per trigger)
                     if plotBool6C
-                        dirFolderGrC = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6C', destSubFolder, nameOnly, condition);
-                        if ~exist(dirFolderGrC, 'dir')
-                            mkdir(dirFolderGrC);
-                        end
-                        figC = figure('Visible', 'off', 'Position', [100, 100, 1600, 900]);
-                        hold on;
-                        ts = linspace(-0.1, 2.0, size(blockAvgData, 2));
-                        dataFiltMicroC = blockAvgData * 1E6;
-                        plot(ts, dataFiltMicroC', 'Color', [0 0 0 0.15]); % faint black for channels
-                        plot(ts, std(dataFiltMicroC), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP in cyan
-                        title([trigger ' (Trigger average across blocks)'], 'Interpreter', 'none');
-                        xlabel('Time (s)'); ylabel('µV'); xlim([-0.1, 2]);
-                        savePathGrC = fullfile(dirFolderGrC, [trigger, '_TriggerAvg.png']);
-                        exportgraphics(figC, savePathGrC);
-                        close(figC);
+                        if ~isfield(plotStoreC, condition), plotStoreC.(condition) = struct(); end
+                        plotStoreC.(condition).(trigger) = blockAvgData;
                     end
-                    % -------------------------------------------------------------
+                end
+            end
+            % after finishing all triggers for this condition, emit 6C figure if requested
+            if plotBool6C && isfield(plotStoreC, condition)
+                dirFolderGrC = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6C', destSubFolder, nameOnly);
+                if ~exist(dirFolderGrC, 'dir')
+                    mkdir(dirFolderGrC);
+                end
+                trigListC = fieldnames(plotStoreC.(condition));
+                nSubsC = numel(trigListC);
+                subplotColsC = ceil(sqrt(nSubsC));
+                subplotRowsC = ceil(nSubsC / subplotColsC);
+            
+                figC = figure('Visible', 'off', 'Position', [100, 100, 2000, 1200]);
+                for tIdx = 1:nSubsC
+                    trigNameC = trigListC{tIdx};
+                    dataC = plotStoreC.(condition).(trigNameC);
+                    ts = linspace(-0.1, 2.0, size(dataC, 2));
+            
+                    subplot(subplotRowsC, subplotColsC, tIdx);
+                    hold on;
+                    dataMicro = dataC * 1E6;
+                    plot(ts, dataMicro', 'Color', [0 0 0 0.15]);         % channels
+                    plot(ts, std(dataMicro), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP
+                    title(trigNameC, 'Interpreter', 'none');             % <-- only trigger name
+                    xlabel('Time (s)'); ylabel('\muV'); xlim([-0.1, 2]);
+                end
+            
+                % Descriptive overall title and filename stay as-is:
+                bigTitle6C = sprintf('Step6C | %s | %s | All triggers', nameOnly, condition);
+                sgtitle(bigTitle6C, 'Interpreter', 'none');
+            
+                file6C = sprintf('Step6C__%s__%s__AllTriggers_Subplots.png', ...
+                                 SafeFile(nameOnly), SafeFile(condition));
+                savePathGrC = fullfile(dirFolderGrC, file6C);
+                exportgraphics(figC, savePathGrC);
+                close(figC);
+            end
+
+
+        end
+
+        % after finishing all conditions/triggers/blocks, emit 6B figures if requested
+        if plotBool6B
+            condKeysB = fieldnames(plotStoreB);
+            for ci = 1:numel(condKeysB)
+                condB = condKeysB{ci};
+                trigKeysB = fieldnames(plotStoreB.(condB));
+                for ti = 1:numel(trigKeysB)
+                    trigB = trigKeysB{ti};
+                    dirFolderGrB = fullfile(baseDestFolder, 'Step7_IndivGraphs_Output_6B', destSubFolder, nameOnly, condB);
+                    if ~exist(dirFolderGrB, 'dir')
+                        mkdir(dirFolderGrB);
+                    end
+                    blockKeys = fieldnames(plotStoreB.(condB).(trigB));
+                    nSubsB = numel(blockKeys);
+                    subplotColsB = ceil(sqrt(nSubsB));
+                    subplotRowsB = ceil(nSubsB / subplotColsB);
+
+                    figB = figure('Visible', 'off', 'Position', [100, 100, 2000, 1200]);
+                    for bi = 1:nSubsB
+                        blk = blockKeys{bi};
+                        dataB = plotStoreB.(condB).(trigB).(blk);
+                        ts = linspace(-0.1, 2.0, size(dataB, 2));
+
+                        subplot(subplotRowsB, subplotColsB, bi);
+                        hold on;
+                        dataMicroB = dataB * 1E6;
+                        plot(ts, dataMicroB', 'Color', [0 0 0 0.15]); % channels
+                        plot(ts, std(dataMicroB), 'LineWidth', 2, 'Color', [0, 1, 1]); % GFP
+                        % Descriptive subplot title for 6B
+                        %subTitle6B = sprintf('%s | %s | %s | %s | Block avg', nameOnly, condB, trigB, blk);
+                        title(blk, 'Interpreter', 'none');
+                        xlabel('Time (s)'); ylabel('\muV'); xlim([-0.1, 2]);
+                    end
+                    bigTitle6B = sprintf('Step6B | %s | %s | %s | All blocks', nameOnly, condB, trigB);
+                    sgtitle(bigTitle6B, 'Interpreter', 'none');
+
+                    file6B = sprintf('Step6B__%s__%s__%s__AllBlocks_Subplots.png', ...
+                        SafeFile(nameOnly), SafeFile(condB), SafeFile(trigB));
+                    savePathGrB = fullfile(dirFolderGrB, file6B);
+                    exportgraphics(figB, savePathGrB);
+                    close(figB);
                 end
             end
         end
@@ -396,54 +511,11 @@ function Step6AthruC(sourceFolder, mainDestFolders, baseDestFolder, destSubFolde
     % Save limit_stats.csv
     outputTXT = fullfile(baseDestFolder, 'Output_Files', destSubFolder, 'limit_stats.txt');
     txtfile = fopen(outputTXT, 'w');
-    fprintf(txtfile, ['Peak to peak upper limit: ', num2str(upperThreshold * 1E6), 'µV.\n']);
-    fprintf(txtfile, ['Standard deviation lower limit : ', num2str(flatStdThresh * 1E6), 'µV.\n']);
+    fprintf(txtfile, ['Peak to peak upper limit: ', num2str(upperThreshold * 1E6), '\xB5V.\n']);
+    fprintf(txtfile, ['Standard deviation lower limit : ', num2str(flatStdThresh * 1E6), '\xB5V.\n']);
     fprintf(txtfile, ['Z-score upper limit: ', num2str(zScoreLimit), '.\n']);
     fclose(txtfile);
     disp(['Saved summary stats to CSV: ', outputTXT]);
     disp('');
     
-end
-
-function includeBool = includeTrigger(condition, trigger)
-
-% See if this is an active condition
-isActiveCond = strncmp(condition, 'Attend', 6);
-
-% If Passive:
-if ~isActiveCond
-    includeBool = true;
-    return;
-end
-
-% If Active:
-%           To 60L: To 30L: To 0:   To 30R: To 60R:         
-% From 60L: 1       2       3       4       5
-% From 30L: 6       7       8       9       10
-% From 0:   11      12      13      14      15
-% From 30R: 16      17      18      19      20
-% From 60R: 21      22      23      24      25
-
-locMatrix = reshape(1:25, [5, 5])'; 
-locLabels = {'60L', '30L', '0', '30R', '60R'}; % Column titles
-
-attendLabel = condition(7:end);
-trigParts = split(trigger, '_');
-triggerNum = trigParts{2};
-triggerTag = trigParts{3};
-
-% Find the column number of this trigger in the location matrix
-[~, locIdx] = find(locMatrix == str2double(triggerNum)); % Ex. 5 for trigger 25
-soundLoc = locLabels{locIdx}; % Ex. sound was at location 30R
-
-if soundLoc == attendLabel
-    if triggerTag == 'Y'; includeBool = true; return;
-    elseif triggerTag == 'N'; includeBool = false; return;
-    end
-else
-    if triggerTag == 'Y'; includeBool = false; return;
-    elseif triggerTag == 'N'; includeBool = true; return;
-    end
-end
-
 end

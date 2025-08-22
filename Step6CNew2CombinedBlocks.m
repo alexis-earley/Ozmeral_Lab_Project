@@ -56,8 +56,8 @@ function Step6CNew2CombinedBlocks(inputDir, outputDir)
 
             for b = 1:length(uniqueBlocks)
                 blockName = uniqueBlocks{b};
-                sumMat = zeros(63, 1051);
-                sumWeights = zeros(63, 1);
+                sumMat = zeros(61, 1051);
+                sumWeights = zeros(61, 1);
 
                 for t = 1:length(triggerList)
                     trigger = triggerList{t};

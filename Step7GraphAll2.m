@@ -1,94 +1,110 @@
-function Step7GraphAll2(sourceDir, destFolder, subplotTitle)
+function Step7GraphAll2(sourceDir, destFolder, subplotTitle, lowPass, highPass)
+
 % Example:
 %   Step7GraphAll2(sourceDir, destFolder, 'Older Hearing Impaired (Unaided)');
 % Input should be from Step6DNew
 
-    % Ensure output directory exists
-    if ~exist(destFolder, 'dir')
-        mkdir(destFolder);
-    end
+if nargin < 4, lowPass = 30; end
+if nargin < 5, highPass = []; end
 
-    % Get all .mat files from source directory
-    files = dir(fullfile(sourceDir, '*.mat'));
-    if isempty(files)
-        error('No .mat files found in source directory.');
-    end
+% Ensure output directory exists
+if ~exist(destFolder, 'dir')
+    mkdir(destFolder);
+end
 
-    % Define 30 Hz low-pass filter
-    Fs = 500;  % Sampling rate in Hz (based on 1051 samples over ~2.1s)
-    cutoff = 30;  % Low-pass cutoff
-    [b, a] = butter(4, cutoff / (Fs / 2), 'low');  % 4th order filter
+% Get all .mat files from source directory
+files = dir(fullfile(sourceDir, '*.mat'));
+if isempty(files)
+    error('No .mat files found in source directory.');
+end
 
-    for f = 1:length(files)
-        filePath = fullfile(sourceDir, files(f).name);
-        disp(['Processing: ', files(f).name]);
+Fs = 500; nyq = Fs/2;
 
-        % Load struct from file
-        fileStruct = load(filePath); 
-        varNames = fieldnames(fileStruct);
-        weightedStruct = fileStruct.(varNames{1});
+% Design filter safely
+if ~isempty(highPass) && ~isempty(lowPass)
+    assert(highPass > 0 && lowPass < nyq && highPass < lowPass, ...
+        'Require 0 < highPass < lowPass < Fs/2.');
+    [b,a] = butter(4, [highPass, lowPass]/nyq, 'bandpass');
+elseif ~isempty(lowPass)
+    assert(lowPass > 0 && lowPass < nyq, 'Require 0 < lowPass < Fs/2.');
+    [b,a] = butter(4, lowPass/nyq, 'low');
+elseif ~isempty(highPass)
+    assert(highPass > 0 && highPass < nyq, 'Require 0 < highPass < Fs/2.');
+    [b,a] = butter(4, highPass/nyq, 'high');
+else
+    b = 1; a = 1; % no filtering
+end
 
-        % Setup for figure layout
-        conditionList = sort(fieldnames(weightedStruct));
-        numConds = length(conditionList);
-        subplotCols = 2;
-        subplotRows = ceil(numConds / subplotCols);
-        fig = figure('Visible', 'off', 'Name', files(f).name, 'NumberTitle', 'off', ...
-             'Position', [100, 100, 1400, 900]);  % Adjust size as needed
+for f = 1:length(files)
+    filePath = fullfile(sourceDir, files(f).name);
+    disp(['Processing: ', files(f).name]);
 
-        % Loop through each condition
-        for i = 1:numConds
-            condition = conditionList{i};
-            data = AverageData(condition, weightedStruct) * 1e6;  % Convert to µV
-            [rows, cols] = size(data);
-            
-            % Apply low-pass filter to each channel
-            for ch = 1:rows
-                if all(isfinite(data(ch, :)))
-                    data(ch, :) = filtfilt(b, a, data(ch, :));
-                else
-                    warning('Non-finite values found in channel, skipping.');
-                end
+    % Load struct from file
+    fileStruct = load(filePath); 
+    varNames = fieldnames(fileStruct);
+    weightedStruct = fileStruct.(varNames{1});
 
-                %data(ch, :) = filtfilt(b, a, data(ch, :));
+    % Setup for figure layout
+    conditionList = sort(fieldnames(weightedStruct));
+    numConds = length(conditionList);
+    subplotCols = 2;
+    subplotRows = ceil(numConds / subplotCols);
+    fig = figure('Visible', 'off', 'Name', files(f).name, 'NumberTitle', 'off', ...
+         'Position', [100, 100, 1400, 900]);  % Adjust size as needed
+
+    % Loop through each condition
+    for i = 1:numConds
+        condition = conditionList{i};
+        data = AverageData(condition, weightedStruct) * 1e6;  % Convert to µV
+        [rows, cols] = size(data);
+        
+        % Apply low-pass filter to each channel
+        for ch = 1:rows
+            if all(isfinite(data(ch, :)))
+                data(ch, :) = filtfilt(b, a, data(ch, :));
+            else
+                warning('Non-finite values found in channel, skipping.');
             end
-            %}
 
-            GFP = std(data);  % Global Field Power
-
-            subplot(subplotRows, subplotCols, i);
-            hold on;
-            ts = linspace(-0.1, 2.0, cols);  % Time vector (in seconds)
-            plot(ts, data, 'b', 'LineWidth', 0.5); % Channels
-            plot(ts, GFP, 'r', 'LineWidth', 2); % GFP
-            xlabel('Time (s)');
-            ylabel('Amplitude (µV)');
-            title(condition);
-            grid on;
-            xlim([-0.1, 2]);
-            ylim([-2, 2]);
+            %data(ch, :) = filtfilt(b, a, data(ch, :));
         end
+        %}
 
-        if numConds > 1
-            titleAll = [subplotTitle, ' Average Potentials - ', files(f).name];
-            sgtitle(titleAll, 'Interpreter', 'none', 'FontSize', 10);
+        GFP = std(data);  % Global Field Power
 
-        end
-
-        % Save figure using base name from input file, appending index if needed
-        [~, baseName, ~] = fileparts(files(f).name);
-        saveBase = fullfile(destFolder, [baseName, '_AllConditions.png']);
-        savePath = saveBase;
-        suffix = 1;
-        while isfile(savePath)
-            savePath = fullfile(destFolder, [baseName, '_AllConditions_', num2str(suffix), '.png']);
-            suffix = suffix + 1;
-        end
-
-        exportgraphics(fig, savePath);
-        close(fig);
-        disp(['Saved figure to: ', savePath]);
+        subplot(subplotRows, subplotCols, i);
+        hold on;
+        ts = linspace(-0.1, 2.0, cols);  % Time vector (in seconds)
+        plot(ts, data, 'b', 'LineWidth', 0.5); % Channels
+        plot(ts, GFP, 'r', 'LineWidth', 2); % GFP
+        xlabel('Time (s)');
+        ylabel('Amplitude (µV)');
+        title(condition);
+        grid on;
+        xlim([-0.1, 2]);
+        ylim([-3, 3]);
     end
+
+    if numConds > 1
+        titleAll = [subplotTitle, ' Average Potentials - ', files(f).name];
+        sgtitle(titleAll, 'Interpreter', 'none', 'FontSize', 10);
+
+    end
+
+    % Save figure using base name from input file, appending index if needed
+    [~, baseName, ~] = fileparts(files(f).name);
+    saveBase = fullfile(destFolder, [baseName, '_AllConditions.png']);
+    savePath = saveBase;
+    suffix = 1;
+    while isfile(savePath)
+        savePath = fullfile(destFolder, [baseName, '_AllConditions_', num2str(suffix), '.png']);
+        suffix = suffix + 1;
+    end
+
+    exportgraphics(fig, savePath);
+    close(fig);
+    disp(['Saved figure to: ', savePath]);
+end
 
     disp('All figures processed.');
 

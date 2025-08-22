@@ -1,5 +1,10 @@
+%function Step7CompareGroupsSE(dirList, dirNames, groupPairs, outputDir, maxTime)
+function Step7CompareGroupsSE(dirList, dirNames, groupPairs, outputDir, maxTime, lowPass, highPass)
+    
+    % NEW
+    if nargin < 6, lowPass  = 30; end     % default low-pass at 30 Hz
+    if nargin < 7, highPass = [];  end     % no high-pass by default
 
-function Step7CompareGroupsSE(dirList, dirNames, groupPairs, outputDir, maxTime)
     % Create output directory if it doesn't exist
     if ~exist(outputDir, 'dir')
         mkdir(outputDir);
@@ -11,9 +16,27 @@ function Step7CompareGroupsSE(dirList, dirNames, groupPairs, outputDir, maxTime)
     lastIndex = find(timeVec <= maxTime, 1, 'last');  % Index of last sample <= maxTime
     ts = timeVec(1:lastIndex);  % Trimmed time vector
 
+    %{
     % Low-pass filter
     cutoff = 30; % 30 Hz
     [b, a] = butter(4, cutoff / (Fs / 2), 'low');
+    %}
+
+    % NEW - Filtering
+    if ~isempty(lowPass) && ~isempty(highPass)
+        if highPass <= 0 || lowPass <= 0 || highPass >= lowPass
+            error('highPass must be > 0 and < lowPass.');
+        end
+        [b, a] = butter(4, [highPass, lowPass] / (Fs / 2), 'bandpass');
+    elseif ~isempty(lowPass)
+        if lowPass <= 0, error('lowPass must be > 0.'); end
+        [b, a] = butter(4, lowPass / (Fs / 2), 'low');
+    elseif ~isempty(highPass)
+        if highPass <= 0, error('highPass must be > 0.'); end
+        [b, a] = butter(4, highPass / (Fs / 2), 'high');
+    else
+        b = 1; a = 1;  % no filtering
+    end
 
     allEEG = struct();  % Stores all EEG data organized by condition and group
     allConditions = {};  % Tracks unique condition names
@@ -98,7 +121,7 @@ function Step7CompareGroupsSE(dirList, dirNames, groupPairs, outputDir, maxTime)
             xlabel('Time (s)');
             ylabel('GFP (µV)');
             xlim([-0.1, maxTime]);
-            ylim([-0.5, 1.5]);
+            ylim([-0.5, 2]);
             grid on;
             legend('Location', 'northwest');
         end

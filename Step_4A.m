@@ -12,7 +12,7 @@ end
 sFileNames = string(sFileNames);
 
 ProtocolPath = 'E:\Alexis_Brainstorm\EOR21_Earley_Paper_Final\Brainstorm_db\Paper_Data_OHI_01_27_2025\data';
-TableName = ('OHI_File_Name_Table_371.csv');
+TableName = ('OHI_File_Name_Table.csv');
 FullTable = (table2cell(readtable(TableName, 'Delimiter', ',')));
 [numRows, numCols] = size(FullTable);
 

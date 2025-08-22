@@ -1,7 +1,12 @@
-function Step7GraphSubjects2(inputDir, outputDir, subplotTitle)
+function Step7GraphSubjects2(inputDir, outputDir, subplotTitle, maxTime, lowPass, highPass)
 % Example:
 %   Step7GraphSubjects2(inputDir, outputDir,'Older Hearing Impaired (Unaided)')
 % Input should be from Step6CNew
+
+    % Defaults
+    if nargin < 4 || isempty(maxTime),  maxTime  = []; end
+    if nargin < 5 || isempty(lowPass),  lowPass  = 30; end
+    if nargin < 6,                      highPass = []; end
 
     % Create output directory if it doesn't exist
     if ~exist(outputDir, 'dir')
@@ -13,10 +18,22 @@ function Step7GraphSubjects2(inputDir, outputDir, subplotTitle)
         error('No .mat files found in input directory.');
     end
 
-    % Define 30 Hz low-pass filter
+    % Filter design (like your other Step 7 scripts)
     Fs = 500;  % Sampling rate
-    cutoff = 30;  
-    [b, a] = butter(4, cutoff / (Fs / 2), 'low');
+    nyq = Fs/2;
+    if ~isempty(highPass) && ~isempty(lowPass)
+        assert(highPass > 0 && lowPass < nyq && highPass < lowPass, ...
+            'Require 0 < highPass < lowPass < Fs/2.');
+        [b,a] = butter(4, [highPass, lowPass]/nyq, 'bandpass');
+    elseif ~isempty(lowPass)
+        assert(lowPass > 0 && lowPass < nyq, 'Require 0 < lowPass < Fs/2.');
+        [b,a] = butter(4, lowPass/nyq, 'low');
+    elseif ~isempty(highPass)
+        assert(highPass > 0 && highPass < nyq, 'Require 0 < highPass < Fs/2.');
+        [b,a] = butter(4, highPass/nyq, 'high');
+    else
+        b = 1; a = 1; % no filtering
+    end
 
     for i = 1:length(files)
         filePath = fullfile(inputDir, files(i).name);
@@ -42,6 +59,20 @@ function Step7GraphSubjects2(inputDir, outputDir, subplotTitle)
             % Compute weighted average and convert to µV
             data = AverageData(condition, weightedStruct) * 1e6;
 
+            % Time vector (based on data length)
+            [rows, cols] = size(data);
+            tsFull = linspace(-0.1, 2.0, cols);
+
+            % Trim to maxTime if provided
+            if ~isempty(maxTime)
+                lastIndex = find(tsFull <= maxTime, 1, 'last');
+                if isempty(lastIndex), lastIndex = cols; end
+            else
+                lastIndex = cols;
+            end
+            ts = tsFull(1:lastIndex);
+            data = data(:, 1:lastIndex);
+
             % Filter each channel
             for ch = 1:size(data, 1)
                 if all(isfinite(data(ch, :)))
@@ -54,16 +85,17 @@ function Step7GraphSubjects2(inputDir, outputDir, subplotTitle)
             subplot(subplotRows, subplotCols, j);
             hold on;
 
-            [rows, cols] = size(data);
-
-            ts = linspace(-0.1, 2.0, cols);  % Time vector (in seconds)
             plot(ts, data, 'b', 'LineWidth', 0.5); % Channel data
             plot(ts, GFP, 'r', 'LineWidth', 2);    % GFP
             xlabel('Time (s)');
-            ylabel('Amplitude (µV)');
+            ylabel('Amplitude (\muV)');
             title(condition);
             grid on;
-            xlim([-0.1, 2]);
+            if isempty(maxTime)
+                xlim([-0.1, 2]);
+            else
+                xlim([-0.1, ts(end)]);
+            end
         end
 
         % Add a title for the full figure
