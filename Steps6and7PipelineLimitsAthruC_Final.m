@@ -62,7 +62,7 @@ for i = 1:length(subjSettings)
     %step6C2aOutDir = fullfile(baseDir, folderName, 'Step6C2a_Output', subjType, subjSetting);
     %step6C2bOutDir = fullfile(baseDir, folderName, 'Step6C2b_Output', subjType, subjSetting);
     step6C2OutDir = fullfile(baseDir, folderName, 'Step6C2_Output', subjType, subjSetting);
-    step6DOutDir = fullfile(baseDir, folderName, 'Step6D_Output', subjType, subjSetting);
+    %step6DOutDir = fullfile(baseDir, folderName, 'Step6D_Output', subjType, subjSetting);
     %step6EOutDir = fullfile(baseDir, folderName, 'Step6E__Output', subjType, subjSetting);
     step6EOutDir = fullfile(baseDir, folderName, 'Step6E_Sep_Output', subjType, subjSetting);
     %step6FOutDir = fullfile(baseDir, folderName, 'Step6F_Output', subjType, subjSetting);
@@ -100,10 +100,12 @@ for i = 1:length(subjSettings)
     Step6CNew2CombinedBlocks(step6BOutDir, step6C2OutDir)
     disp(['Step 6C2b - Combine Blocks completed in ', num2str(toc/60), ' minutes.']);
 
+    %{
     %% Step 6D
     disp('Starting Step 6D:'); tic;
     Step6DNew2(step6COutDir, step6DOutDir);
     disp(['Step 6D completed in ', num2str(toc/60), ' minutes.']);
+    %}
     
     %% Step 6E Seperate
     disp('Starting Step 6E:'); tic;
@@ -115,7 +117,6 @@ for i = 1:length(subjSettings)
     %Step6F2(step6EOutDir, step6FOutDir);
     Step6F2(step6EOutDir, step6FOutDir);
     disp(['Step 6F completed in ', num2str(toc/60), ' minutes.']);
-
     
     %% Step 6G Combine All 
     disp('Starting Step 6G:'); tic;
